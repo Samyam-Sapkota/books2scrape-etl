@@ -1,1 +1,11 @@
+inside env do :
 
+
+
+AIRFLOW__SMTP__SMTP_HOST=mail.samyamsapkota.com.np
+AIRFLOW__SMTP__SMTP_STARTTLS=True
+AIRFLOW__SMTP__SMTP_SSL=False
+AIRFLOW__SMTP__SMTP_USER=samyam@samyamsapkota.com.np
+AIRFLOW__SMTP__SMTP_PASSWORD=YOUR_PASSWORD
+AIRFLOW__SMTP__SMTP_PORT=587
+AIRFLOW__SMTP__SMTP_MAIL_FROM=samyam@samyamsapkota.com.np
