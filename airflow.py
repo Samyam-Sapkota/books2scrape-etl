@@ -5,6 +5,9 @@ import datetime
 import pandas as pd
 import logging
 import os
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 
 # Import your pipeline functions
 from extract_pipeline import fetch_main_page_url
@@ -12,6 +15,14 @@ from transformation_pipeline import transform_books_data
 
 # Set up logger
 logger = logging.getLogger(__name__)
+
+# --- EMAIL CONFIG ---
+SMTP_SERVER = 'mail.samyamsapkota.com.np'
+SMTP_PORT = 587
+SMTP_USERNAME = 'samyam@samyamsapkota.com.np'
+SMTP_PASSWORD = ''  # <<<< ENTER YOUR PASSWORD HERE
+EMAIL_FROM = 'samyam@samyamsapkota.com.np'
+EMAIL_TO = 'samyamsapkota@gmail.com'
 
 
 @dag(
@@ -25,7 +36,7 @@ logger = logging.getLogger(__name__)
     default_args={
         'owner': 'airflow',
         'depends_on_past': False,
-        'email': ['your-email@example.com'],  # UPDATE THIS
+        'email': ['samyamsapkota@gmail.com'],
         'email_on_failure': True,
         'email_on_retry': False,
         'retries': 1,
@@ -182,21 +193,46 @@ def books_etl_pipeline():
             logger.error(f"Failed to prepare email: {str(e)}")
             raise AirflowException(f"Failed to prepare email content: {str(e)}")
 
+    @task()
+    def send_email_task(email_content: str):
+        """
+        Send email using SMTP directly
+        """
+        try:
+            if not SMTP_PASSWORD:
+                raise AirflowException("SMTP_PASSWORD is not set. Please update SMTP_PASSWORD in the DAG file.")
+            
+            logger.info(f"Preparing to send email to {EMAIL_TO}")
+            
+            # Create message
+            msg = MIMEMultipart('alternative')
+            msg['Subject'] = f'Books ETL Pipeline - Execution Report - {datetime.datetime.now().strftime("%Y-%m-%d")}'
+            msg['From'] = EMAIL_FROM
+            msg['To'] = EMAIL_TO
+            
+            # Attach HTML content
+            html_part = MIMEText(email_content, 'html')
+            msg.attach(html_part)
+            
+            # Connect to SMTP and send
+            with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
+                server.starttls()
+                logger.info(f"Connecting to SMTP server: {SMTP_SERVER}:{SMTP_PORT}")
+                server.login(SMTP_USERNAME, SMTP_PASSWORD)
+                logger.info("SMTP login successful")
+                server.send_message(msg)
+                logger.info(f"Email sent successfully to {EMAIL_TO}")
+            
+            return f"Email sent to {EMAIL_TO}"
+        except Exception as e:
+            logger.error(f"Failed to send email: {str(e)}")
+            raise AirflowException(f"Failed to send email: {str(e)}")
+
     # Define tasks
     csv_file = extract_books()
     summary = transform_books(csv_file)
     email_content = prepare_email(summary)
-    
-    # Email task (cannot be decorated, so using traditional operator)
-    send_email = EmailOperator(
-        task_id='send_email_report',
-        to=['recipient@example.com'],  # UPDATE THIS
-        subject='Books ETL Pipeline - Execution Report - {{ ds }}',
-        html_content=email_content,
-    )
-    
-    # Set dependency
-    email_content >> send_email
+    email_result = send_email_task(email_content)
 
 
 # Instantiate the DAG
